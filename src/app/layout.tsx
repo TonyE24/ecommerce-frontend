@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import AuthenticatedNavbar from "@/components/AuthenticatedNavbar";
 import Navbar from "@/components/Navbar";
 import { CartProvider } from "@/context/CartContext";
 import "./globals.css";
@@ -27,7 +29,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <CartProvider>
-          <Navbar />
+          <Suspense fallback={<Navbar isAuthenticated={false} />}>
+            <AuthenticatedNavbar />
+          </Suspense>
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
             {children}
           </main>

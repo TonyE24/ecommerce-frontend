@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import { logoutAction } from "@/actions/auth.actions";
 
-export default function Navbar() {
+export default function Navbar({
+  isAuthenticated,
+}: {
+  isAuthenticated: boolean;
+}) {
   const { itemCount } = useCart();
 
   return (
@@ -18,7 +23,21 @@ export default function Navbar() {
           <Link href="/checkout" aria-label={`Carrito: ${itemCount} productos`}>
             Carrito ({itemCount})
           </Link>
-          <Link href="/login">Ingresar</Link>
+          {isAuthenticated ? (
+            <>
+              <Link href="/dashboard/ordenes">Mi cuenta</Link>
+              <form action={logoutAction}>
+                <button className="underline" type="submit">
+                  Cerrar sesión
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <Link href="/login">Ingresar</Link>
+              <Link href="/register">Crear cuenta</Link>
+            </>
+          )}
         </div>
       </nav>
     </header>
