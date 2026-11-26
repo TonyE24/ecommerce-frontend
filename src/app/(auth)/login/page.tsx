@@ -1,11 +1,16 @@
+"use client";
+
 import Link from "next/link";
-import { login } from "@/actions/auth.actions";
+import { useActionState } from "react";
+import { loginAction } from "@/actions/auth.actions";
 
 export default function LoginPage() {
+  const [state, formAction, pending] = useActionState(loginAction, {});
+
   return (
     <section className="mx-auto max-w-md">
       <h1 className="mb-6 text-3xl font-bold">Iniciar sesión</h1>
-      <form action={login} className="space-y-4">
+      <form action={formAction} className="space-y-4">
         <label className="block space-y-1">
           <span>Correo electrónico</span>
           <input
@@ -26,8 +31,13 @@ export default function LoginPage() {
             type="password"
           />
         </label>
-        <button className="rounded bg-zinc-900 px-4 py-2 text-white" type="submit">
-          Ingresar
+        {state.error && <p role="alert">{state.error}</p>}
+        <button
+          className="rounded bg-zinc-900 px-4 py-2 text-white"
+          disabled={pending}
+          type="submit"
+        >
+          {pending ? "Ingresando..." : "Ingresar"}
         </button>
       </form>
       <p className="mt-4">

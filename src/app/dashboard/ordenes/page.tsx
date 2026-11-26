@@ -1,9 +1,22 @@
 import { Suspense } from "react";
-import { apiRequest } from "@/lib/api";
-import type { Order } from "@/types";
+import { apiFetch } from "@/lib/api";
+
+interface OrdersResponse {
+  success: boolean;
+  data: Array<{
+    id: number | string;
+    status: string;
+    total: number | string;
+    created_at: string;
+  }>;
+}
 
 async function OrderHistory() {
-  const orders = await apiRequest<Order[]>("/orders");
+  const response = await apiFetch<OrdersResponse>("/orders");
+  if (!response.success || !Array.isArray(response.data)) {
+    throw new Error("El backend devolvió una respuesta inválida para las órdenes.");
+  }
+  const orders = response.data;
 
   if (orders.length === 0) {
     return <p>Aún no tienes órdenes.</p>;
@@ -20,10 +33,10 @@ async function OrderHistory() {
             {new Intl.NumberFormat("es-SV", {
               style: "currency",
               currency: "USD",
-            }).format(order.total)}
+            }).format(Number(order.total))}
           </p>
-          <time dateTime={order.createdAt}>
-            {new Date(order.createdAt).toLocaleDateString("es-SV")}
+          <time dateTime={order.created_at}>
+            {new Date(order.created_at).toLocaleDateString("es-SV")}
           </time>
         </li>
       ))}

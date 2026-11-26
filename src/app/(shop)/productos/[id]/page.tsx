@@ -1,8 +1,19 @@
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { notFound } from "next/navigation";
 import AddToCartButton from "@/components/AddToCartButton";
-import { ApiError, apiRequest } from "@/lib/api";
+import { ApiError, apiFetch } from "@/lib/api";
 import type { Product } from "@/types";
+
+interface ProductResponse {
+  success: boolean;
+  data: {
+    id: number | string;
+    name: string;
+    description: string | null;
+    price: number | string;
+    stock: number;
+  };
+}
 
 async function ProductDetails({
   params,
@@ -10,14 +21,27 @@ async function ProductDetails({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  let product: Product;
+  let response: ProductResponse;
   try {
-    product = await apiRequest<Product>(`/products/${encodeURIComponent(id)}`);
+    response = await apiFetch<ProductResponse>(
+      `/products/${encodeURIComponent(id)}`,
+    );
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      notFound();
-    }
+    if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
+  }
+  if (!response.success || !response.data) {
+    throw new Error("El backend devolvió una respuesta inválida para el producto.");
+  }
+  const product: Product = {
+    id: String(response.data.id),
+    name: response.data.name,
+    description: response.data.description ?? "",
+    price: Number(response.data.price),
+    stock: response.data.stock,
+  };
+  if (!Number.isFinite(product.price)) {
+    throw new Error("El backend devolvió un precio inválido para el producto.");
   }
 
   return (
@@ -30,6 +54,9 @@ async function ProductDetails({
           currency: "USD",
         }).format(product.price)}
       </p>
+      {product.stock !== undefined && product.stock <= 0 && (
+        <p>Producto agotado.</p>
+      )}
       <AddToCartButton product={product} />
     </article>
   );
