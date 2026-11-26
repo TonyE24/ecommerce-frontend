@@ -4,10 +4,10 @@ import { useEffect } from "react";
 
 export default function OrdersError({
   error,
-  retry,
+  reset,
 }: {
   error: Error & { digest?: string };
-  retry: () => void;
+  reset: () => void;
 }) {
   useEffect(() => {
     console.error("Error al cargar el historial de órdenes.", error);
@@ -16,7 +16,7 @@ export default function OrdersError({
   return (
     <section role="alert">
       <h1 className="text-2xl font-bold">No se pudieron cargar tus órdenes</h1>
-      <button className="mt-4 rounded border px-4 py-2" onClick={() => retry()}>
+      <button className="mt-4 rounded border px-4 py-2" onClick={reset}>
         Reintentar
       </button>
     </section>

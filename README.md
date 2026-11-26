@@ -8,37 +8,115 @@ identificadores de producto y cantidades.
 ## Requisitos
 
 - Node.js compatible con Next.js 16
-- API Laravel disponible
-- Claves publicables de Stripe para el entorno de prueba o producción
+- PHP 8.2 o superior, Composer y MySQL para ejecutar el backend local
+- Una cuenta Stripe en modo de prueba para completar pagos
+
+## Preparar el backend local
+
+En una terminal, ve a la carpeta `ecommerce-api-secure` (la API Laravel que
+acompaña este frontend) y ejecuta:
+
+```bash
+composer install
+```
+
+Copia `.env.example` a `.env` y configura la conexión MySQL. Crea antes la base
+de datos indicada por `DB_DATABASE` (por defecto, `ecommerce_api`) y añade las
+claves de prueba de Stripe:
+
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=ecommerce_api
+DB_USERNAME=root
+DB_PASSWORD=
+STRIPE_KEY=pk_test_...
+STRIPE_SECRET=sk_test_...
+```
+
+Genera las claves de Laravel y JWT, aplica las migraciones y carga el catálogo:
+
+```bash
+php artisan key:generate
+php artisan jwt:secret
+php artisan migrate --seed
+```
+
+`migrate --seed` carga cuatro productos de demostración. Luego inicia la API:
+
+```bash
+php artisan serve --host=127.0.0.1 --port=8000
+```
+
+La documentación Swagger queda disponible en
+[`http://127.0.0.1:8000/api/documentation`](http://127.0.0.1:8000/api/documentation).
+No compartas ni subas `.env`, claves `sk_test_...` o tokens JWT. Usa únicamente
+claves `pk_test_...` y `sk_test_...` para las pruebas locales.
 
 ## Configuración
 
-1. Instala dependencias:
+En otra terminal, desde la carpeta `ecommerce-frontend`:
+
+1. Instala las dependencias:
 
    ```bash
    npm install
    ```
 
-2. Copia `.env.example` a `.env.local` y configura:
+2. Copia `.env.example` a `.env.local` y configura la URL de la API y la clave
+   publicable de Stripe:
 
    ```dotenv
    API_BASE_URL=http://127.0.0.1:8000/api
-   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
+   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
    ```
 
    `API_BASE_URL` debe apuntar al prefijo API de Laravel. La clave publicable
-   `pk_...` se puede exponer al navegador; nunca pongas una clave secreta `sk_...`
-   en variables `NEXT_PUBLIC_*` ni en este repositorio. La clave secreta solo
-   corresponde al backend.
+   `pk_test_...` se puede exponer al navegador. Debe corresponder a la misma
+   cuenta Stripe que la clave secreta `sk_test_...` configurada en Laravel.
+   Nunca pongas una clave secreta `sk_...` en variables `NEXT_PUBLIC_*`.
 
-3. Inicia Next.js:
+3. Inicia Next.js en modo desarrollo:
 
    ```bash
    npm run dev
    ```
 
-   Abre `http://localhost:3000`. Para validar una compilación de producción,
-   ejecuta `npm run build` y luego `npm run start`.
+   Abre [`http://localhost:3000`](http://localhost:3000). Para probar como
+   producción, ejecuta `npm run build` y luego `npm run start` (manteniendo la
+   API activa en la otra terminal).
+
+## Probar el flujo de compra
+
+1. Confirma que la API responde abriendo el catálogo en
+   [`http://127.0.0.1:8000/api/products`](http://127.0.0.1:8000/api/products);
+   debe devolver los cuatro productos sembrados.
+2. En el frontend, abre `/register` y crea una cuenta de prueba. También puedes
+   iniciar sesión desde `/login` si ya registraste una.
+3. En `/`, abre un producto y pulsa **Agregar al carrito**.
+4. Abre **Carrito** y completa `/checkout`. El checkout y `/dashboard/ordenes`
+   requieren iniciar sesión; sin sesión te redirigen a `/login`.
+5. Para Stripe en modo de prueba, usa la tarjeta `4242 4242 4242 4242`, una
+   fecha futura (por ejemplo `12/34`) y cualquier CVC de tres dígitos. No uses
+   datos de tarjetas reales.
+6. Al confirmarse el pago, el frontend muestra `/checkout/success` y limpia el
+   carrito. Comprueba en `/dashboard/ordenes` que la orden figura como `paid`.
+
+El backend calcula el total y descuenta el inventario al crear la orden. Si un
+pago falla, el checkout conserva el carrito y permite reintentar el pago de la
+orden existente; no vuelvas a agregar otra orden para el mismo intento.
+
+### Problemas comunes
+
+- **El catálogo está vacío:** ejecuta `php artisan migrate --seed` en el backend.
+- **Error de conexión/API:** comprueba que Laravel está escuchando en el puerto
+  8000 y que `API_BASE_URL` termina en `/api`.
+- **Stripe no está disponible o rechaza el pago:** revisa que ambas claves sean
+  de prueba y de la misma cuenta Stripe; reinicia Next.js después de modificar
+  `.env.local`.
+- **La orden no se puede crear por stock:** vuelve a cargar el catálogo; la API
+  valida existencias al confirmar la compra.
 
 ## Rutas
 
@@ -90,11 +168,18 @@ El catálogo y el historial usan Server Components y `Suspense`; catálogo y
 checkout tienen `loading.tsx`, y los segmentos correspondientes tienen
 `error.tsx`. Las acciones revalidan rutas afectadas.
 
-Antes de adjuntar evidencia Lighthouse, inicia el backend y Next.js en un entorno
-representativo; luego ejecuta Lighthouse desde Chrome DevTools en la ruta `/` y
-guarda el reporte HTML o una captura con la URL, fecha y métricas visibles.
-Documenta también la ruta y el perfil usado (móvil o escritorio). El repositorio
-no incluye un reporte Lighthouse generado todavía.
+Se adjuntan las siguientes evidencias:
+
+- [Reporte Lighthouse del catálogo](./lighthouse-catalogo.report.html):
+  Performance 73, Accessibility 95, Best Practices 100 y SEO 100.
+  FCP 1.9 s, LCP 1.9 s, CLS 0 y TBT 1450 ms.
+- [Captura del catálogo](./public/catalogo.png).
+- [Captura del historial de compras](./public/historial-compra.png).
+
+El reporte se generó en perfil móvil con la aplicación Next.js 16 en modo
+producción sobre `http://127.0.0.1:3000/`, usando Edge como navegador
+headless y la API Laravel local conectada. Estas métricas corresponden al
+catálogo con datos reales de prueba, no a `/login` ni `/checkout`.
 
 Comprobaciones locales:
 
