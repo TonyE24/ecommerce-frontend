@@ -1,16 +1,15 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { ACCESS_TOKEN_COOKIE } from "@/lib/constants";
+import { NextResponse, type NextRequest } from 'next/server';
 
 export function proxy(request: NextRequest) {
-  if (!request.cookies.has(ACCESS_TOKEN_COOKIE)) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
+  const token = request.cookies.get('jwt_token')?.value;
+
+  if (!token) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ['/dashboard/:path*', '/checkout/:path*'],
 };
