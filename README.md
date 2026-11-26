@@ -170,11 +170,18 @@ checkout tienen `loading.tsx`, y los segmentos correspondientes tienen
 
 Se adjuntan las siguientes evidencias:
 
+- [Captura de endpoints en Swagger](./public/swagger-endpoints.png).
+- [Captura de compra confirmada con Stripe en modo de prueba](./public/flujo-compra.png).
+- [Captura del historial con la orden pagada](./public/historial-compra-verificada.png).
 - [Reporte Lighthouse del catálogo](./lighthouse-catalogo.report.html):
   Performance 73, Accessibility 95, Best Practices 100 y SEO 100.
   FCP 1.9 s, LCP 1.9 s, CLS 0 y TBT 1450 ms.
 - [Captura del catálogo](./public/catalogo.png).
 - [Captura del historial de compras](./public/historial-compra.png).
+
+La compra de evidencia se completó localmente con una tarjeta de prueba de
+Stripe; el historial confirmó el estado `paid`. No se usaron datos ni tarjetas
+reales.
 
 El reporte se generó en perfil móvil con la aplicación Next.js 16 en modo
 producción sobre `http://127.0.0.1:3000/`, usando Edge como navegador

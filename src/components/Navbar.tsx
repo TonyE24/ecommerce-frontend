@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCart } from "@/context/CartContext";
+import { useCart, useIsHydrated } from "@/context/CartContext";
 import { logoutAction } from "@/actions/auth.actions";
 
 export default function Navbar({
@@ -10,6 +10,8 @@ export default function Navbar({
   isAuthenticated: boolean;
 }) {
   const { itemCount } = useCart();
+  const isHydrated = useIsHydrated();
+  const visibleItemCount = isHydrated ? itemCount : 0;
 
   return (
     <header className="border-b border-zinc-200">
@@ -20,8 +22,11 @@ export default function Navbar({
         <div className="flex items-center gap-4">
           <Link href="/">Productos</Link>
           <Link href="/dashboard/ordenes">Mis órdenes</Link>
-          <Link href="/checkout" aria-label={`Carrito: ${itemCount} productos`}>
-            Carrito ({itemCount})
+          <Link
+            href="/checkout"
+            aria-label={`Carrito: ${visibleItemCount} productos`}
+          >
+            Carrito ({visibleItemCount})
           </Link>
           {isAuthenticated ? (
             <>

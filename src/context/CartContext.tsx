@@ -14,6 +14,18 @@ const CHECKOUT_STORAGE_KEY = "store-checkout-attempt";
 const EMPTY_CART: CartItem[] = [];
 const IDLE_CHECKOUT = { status: "idle" } as const;
 
+function subscribeToHydration() {
+  return () => {};
+}
+
+function getHydrationSnapshot() {
+  return true;
+}
+
+function getServerHydrationSnapshot() {
+  return false;
+}
+
 let cachedRaw: string | null | undefined;
 let cachedItems = EMPTY_CART;
 let cachedCheckoutRaw: string | null | undefined;
@@ -37,6 +49,14 @@ interface CartContextValue {
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
+
+export function useIsHydrated() {
+  return useSyncExternalStore(
+    subscribeToHydration,
+    getHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
+}
 
 function isCartItem(value: unknown): value is CartItem {
   if (typeof value !== "object" || value === null) return false;
@@ -175,10 +195,15 @@ function updateCheckoutAttempt(attempt: CheckoutAttempt) {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const items = useSyncExternalStore(subscribe, getCartSnapshot, () => EMPTY_CART);
+  const isHydrated = useIsHydrated();
+  const items = useSyncExternalStore(
+    subscribe,
+    () => (isHydrated ? getCartSnapshot() : EMPTY_CART),
+    () => EMPTY_CART,
+  );
   const checkoutAttempt = useSyncExternalStore(
     subscribe,
-    getCheckoutAttemptSnapshot,
+    () => (isHydrated ? getCheckoutAttemptSnapshot() : IDLE_CHECKOUT),
     () => IDLE_CHECKOUT,
   );
 
