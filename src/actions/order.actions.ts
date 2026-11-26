@@ -1,63 +1,124 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { apiRequest } from "@/lib/api";
-import type { CheckoutSessionResponse, Order, OrderItemInput } from "@/types";
+import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
+import { apiFetch } from '@/lib/api';
 
-function readOrderItems(formData: FormData): OrderItemInput[] {
-  const rawItems = formData.get("items");
-  if (typeof rawItems !== "string") {
-    throw new Error("No se recibieron productos para la orden.");
+interface CartItemInput {
+  product_id: number;
+  quantity: number;
+}
+
+type ActionResult =
+  | { success: true; orderId: number }
+  | { success: false; error: string; orderId?: number };
+
+type OrderResponse = {
+  success: boolean;
+  data: {
+    id: number;
+  };
+};
+
+type PaymentResponse = {
+  success: boolean;
+  data: {
+    status: string;
+  };
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
   }
 
-  const value: unknown = JSON.parse(rawItems);
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error("El carrito está vacío o no es válido.");
+  return 'No se pudo procesar la orden.';
+}
+
+export async function createOrderAndPayAction(
+  items: CartItemInput[],
+  paymentMethodId: string,
+): Promise<ActionResult> {
+  if (
+    !Array.isArray(items) ||
+    items.length === 0 ||
+    items.some(
+      (item) =>
+        !item ||
+        !Number.isInteger(item.product_id) ||
+        item.product_id < 1 ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity < 1,
+    )
+  ) {
+    return { success: false, error: 'El carrito no contiene artículos válidos.' };
   }
 
-  const items = value.map((item): OrderItemInput => {
-    if (
-      !item ||
-      typeof item !== "object" ||
-      !("productId" in item) ||
-      typeof item.productId !== "string" ||
-      !("quantity" in item) ||
-      typeof item.quantity !== "number" ||
-      !Number.isInteger(item.quantity) ||
-      item.quantity < 1
-    ) {
-      throw new Error("Hay un producto inválido en el carrito.");
+  if (typeof paymentMethodId !== 'string' || paymentMethodId.trim() === '') {
+    return { success: false, error: 'Falta el método de pago de Stripe.' };
+  }
+
+  const token = (await cookies()).get('jwt_token')?.value;
+
+  if (!token) {
+    return { success: false, error: 'Inicia sesión antes de pagar.' };
+  }
+
+  let orderId: number | undefined;
+
+  try {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+
+    const orderResponse = await apiFetch<OrderResponse>('/orders', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ items }),
+    });
+
+    if (!orderResponse.success || !Number.isInteger(orderResponse.data?.id)) {
+      throw new Error('El backend no devolvió una orden válida.');
     }
-    return { productId: item.productId, quantity: item.quantity };
-  });
 
-  return items;
-}
+    orderId = orderResponse.data.id;
 
-async function createOrder(items: OrderItemInput[]) {
-  const order = await apiRequest<Order>("/orders", {
-    method: "POST",
-    body: JSON.stringify({ items }),
-  });
-  revalidatePath("/dashboard/ordenes");
-  return order;
-}
+    // La orden ya existe y el backend ya descontó el inventario.
+    revalidatePath('/dashboard/ordenes');
+    revalidatePath('/');
 
-export async function submitOrder(formData: FormData) {
-  await createOrder(readOrderItems(formData));
-  redirect("/dashboard/ordenes");
-}
+    const paymentResponse = await apiFetch<PaymentResponse>(
+      '/payments/process',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          order_id: orderId,
+          payment_method_id: paymentMethodId,
+        }),
+      },
+    );
 
-export async function startStripeCheckout(formData: FormData) {
-  const order = await createOrder(readOrderItems(formData));
-  const session = await apiRequest<CheckoutSessionResponse>(
-    `/orders/${encodeURIComponent(order.id)}/checkout`,
-    { method: "POST" },
-  );
+    if (
+      !paymentResponse.success ||
+      paymentResponse.data?.status !== 'succeeded'
+    ) {
+      return {
+        success: false,
+        error: 'La orden se creó, pero el pago no fue confirmado.',
+        orderId,
+      };
+    }
 
-  if (!session.url) {
-    throw new Error("La API no devolvió la URL de pago.");
+    revalidatePath('/dashboard/ordenes');
+
+    return { success: true, orderId };
+  } catch (error: unknown) {
+    return {
+      success: false,
+      error: getErrorMessage(error),
+      ...(orderId !== undefined ? { orderId } : {}),
+    };
   }
-  redirect(session.url);
 }
